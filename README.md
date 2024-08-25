@@ -19,3 +19,6 @@
 2.函数标记meta=(BlueprintPtr="true",BlueprintInternalUseOnly="true")，不需要标记Blueprintable. marking meta=(BlueprintPtr="true",BlueprintInternalUseOnly="true") on function. Blueprintable is not needed.
 
 3.函数内将传入的参数的类型视为uint64*&来处理, process those params as uint64*&
+
+函数在蓝图中使用的形式如下 The function looks like this in the blueprint
+![image](https://github.com/user-attachments/assets/fb03140b-f4be-4dfb-93a8-86424a0f7010)
