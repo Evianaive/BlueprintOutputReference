@@ -1,0 +1,28 @@
+﻿{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "BlueprintOutputReference",
+	"Description": "This plugin allow user to define function that can output reference in blueprint",
+	"Category": "Other",
+	"CreatedBy": "Evianaive",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "BlueprintOutputReference",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "BlueprintOutputReferenceKismet",
+			"Type": "Developer",
+			"LoadingPhase": "Default"
+		}
+	]
+}
