@@ -42,8 +42,3 @@ DEFINE_FUNCTION(UDereferencePtrFunctionLibrary::execDereferencePtrToVar)
 	P_NATIVE_BEGIN;
 	P_NATIVE_END;
 }
-
-FString UDereferencePtrFunctionLibrary::Conv_TestVectorToString(FVector InVec)
-{
-	return InVec.ToString();
-}

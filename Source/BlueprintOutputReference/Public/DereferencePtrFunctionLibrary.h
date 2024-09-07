@@ -21,7 +21,4 @@ public:
 	UFUNCTION(CustomThunk)
 	static void DereferencePtrToVar(int64 InPtr,UPARAM(ref)int32& Var);
 	DECLARE_FUNCTION(execDereferencePtrToVar);
-	
-	UFUNCTION(BlueprintPure, meta=(DisplayName = "Test To String (Vector)", CompactNodeTitle = "->", BlueprintAutocast), Category="Utilities|String")
-	static FString Conv_TestVectorToString(FVector InVec);
 };

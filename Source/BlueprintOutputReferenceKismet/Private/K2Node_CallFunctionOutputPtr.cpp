@@ -220,7 +220,7 @@ void UK2Node_CallFunctionOutputPtr::GetMenuActions(FBlueprintActionDatabaseRegis
 		for (TFieldIterator<UFunction> FunctionIt(Class, EFieldIteratorFlags::ExcludeSuper); FunctionIt; ++FunctionIt)
 		{
 			UFunction* Function = *FunctionIt;
-			if(!Function->GetBoolMetaData(TEXT("BlueprintPtr")))
+			if(!Function->HasMetaData(TEXT("BlueprintPtr")))
 			{
 				continue;
 			}
@@ -359,7 +359,7 @@ void UK2Node_CallFunctionOutputPtr::UpdatePtrPinPairs()
 	{
 		FProperty* Param = *PropIt;
 		// Todo don't add to set if Param is const T&
-		if(Param->GetBoolMetaData(TEXT("Ptr")))
+		if(Param->HasMetaData(TEXT("Ptr")))
 		{
 			const FString& PinDisplayName = Param->GetMetaData(FBlueprintMetadata::MD_DisplayName);
 			if (!PinDisplayName.IsEmpty())
