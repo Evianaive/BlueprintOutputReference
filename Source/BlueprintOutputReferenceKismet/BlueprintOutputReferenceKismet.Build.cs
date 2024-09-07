@@ -1,4 +1,5 @@
-﻿using UnrealBuildTool;
+﻿// Copyright 2024-2025 Evianaive. All Rights Reserved.
+using UnrealBuildTool;
 
 public class BlueprintOutputReferenceKismet : ModuleRules
 {

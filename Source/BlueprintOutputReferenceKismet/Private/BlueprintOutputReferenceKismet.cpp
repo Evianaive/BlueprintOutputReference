@@ -1,4 +1,6 @@
-﻿#include "BlueprintOutputReferenceKismet.h"
+﻿// Copyright 2024-2025 Evianaive. All Rights Reserved.
+
+#include "BlueprintOutputReferenceKismet.h"
 
 #define LOCTEXT_NAMESPACE "FBlueprintOutputReferenceKismetModule"
 

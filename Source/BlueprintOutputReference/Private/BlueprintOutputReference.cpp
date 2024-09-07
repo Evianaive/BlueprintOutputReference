@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 2024-2025 Evianaive. All Rights Reserved.
 
 #include "BlueprintOutputReference.h"
 
