@@ -11,7 +11,7 @@
 
 蓝图会将函数的引用入参作为输出使用，但这样实际上输出的值而不是引用。如果需要输出引用，我们实际上要传入T*&。 blueprint function uses reference param as output but does not return value by reference unless we pass T*& into the function.
 
-![image](https://github.com/user-attachments/assets/46a0d5ad-6f5f-4615-92be-311f2ad6d2fe)
+![image](https://github.com/user-attachments/assets/c8809337-aaaa-4d4f-af0e-b86a58a989ab)
 
 以下是可以被这个插件导出到蓝图的C++输出引用的函数实现的注意事项。 these are some rules you need to follow when writing a function that can be exported to a blueprint by this plugin
 
