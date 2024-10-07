@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿// Copyright 2024-2025 Evianaive. All Rights Reserved.
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
