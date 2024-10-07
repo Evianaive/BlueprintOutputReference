@@ -16,11 +16,11 @@ class BLUEPRINTOUTPUTREFERENCEKISMET_API UK2Node_CallFunctionOutputPtr : public 
 	GENERATED_BODY()
 	virtual void AllocateDefaultPins() override;
 	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
-	virtual void GetMenuEntries(FGraphContextMenuBuilder& ContextMenuBuilder) const override;
 	
 	virtual FNodeHandlingFunctor* CreateNodeHandler(FKismetCompilerContext& CompilerContext) const override;
 	virtual void ExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph) override;
 
+	virtual void PostParameterPinCreated(UEdGraphPin* Pin) override;
 	void UpdatePtrPinPairs();
 public:
 	struct FNonReferenceState

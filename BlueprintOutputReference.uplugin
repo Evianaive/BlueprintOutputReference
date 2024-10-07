@@ -21,7 +21,7 @@
 		},
 		{
 			"Name": "BlueprintOutputReferenceKismet",
-			"Type": "Developer",
+			"Type": "UncookedOnly",
 			"LoadingPhase": "Default"
 		}
 	]

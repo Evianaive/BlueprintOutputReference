@@ -20,7 +20,6 @@ struct FBlueprintCompiledStatement;
 class FKCHandler_CallFunctionOutputPtr : public FKCHandler_CallFunction
 {
 public:
-	static inline FString Ends = TEXT("_ArrayPropHackMark");
 	FKCHandler_CallFunctionOutputPtr(FKismetCompilerContext& InCompilerContext)
 		: FKCHandler_CallFunction(InCompilerContext)
 	{
@@ -290,11 +289,6 @@ void UK2Node_CallFunctionOutputPtr::GetMenuActions(FBlueprintActionDatabaseRegis
 	}
 }
 
-void UK2Node_CallFunctionOutputPtr::GetMenuEntries(FGraphContextMenuBuilder& ContextMenuBuilder) const
-{
-	Super::GetMenuEntries(ContextMenuBuilder);
-}
-
 FNodeHandlingFunctor* UK2Node_CallFunctionOutputPtr::CreateNodeHandler(FKismetCompilerContext& CompilerContext) const
 {
 	return new FKCHandler_CallFunctionOutputPtr(CompilerContext);
@@ -302,16 +296,18 @@ FNodeHandlingFunctor* UK2Node_CallFunctionOutputPtr::CreateNodeHandler(FKismetCo
 
 void UK2Node_CallFunctionOutputPtr::ExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph)
 {
+	// Todo order problem??
 	UpdatePtrPinPairs();
 	Super::ExpandNode(CompilerContext, SourceGraph);
 	
 	for (auto& Element : OutputPtrPinPairs)
 	{
-		// UEdGraphPin::CreatePin(CurNode);
 		Element.PtrPin = CreatePin(EGPD_Output,
 			UEdGraphSchema_K2::PC_Int64,
 			FName(Element.MainPin->PinName.ToString()+TEXT("_Ptr")));
 		Pins.RemoveAt(Pins.Num()-1);
+
+		// Todo move this logic to RegisterNet!
 		bool ConnectionHasRef = false;
 		bool ConnectionHasNonRef = false;
 		for(auto LinkedTo : Element.MainPin->LinkedTo)
@@ -349,6 +345,11 @@ void UK2Node_CallFunctionOutputPtr::ExpandNode(FKismetCompilerContext& CompilerC
 	}
 }
 
+void UK2Node_CallFunctionOutputPtr::PostParameterPinCreated(UEdGraphPin* Pin)
+{
+	Super::PostParameterPinCreated(Pin);
+}
+
 void UK2Node_CallFunctionOutputPtr::UpdatePtrPinPairs()
 {
 	auto Function = GetTargetFunction();
@@ -357,23 +358,23 @@ void UK2Node_CallFunctionOutputPtr::UpdatePtrPinPairs()
 	for (TFieldIterator<FProperty> PropIt(Function); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
 	{
 		FProperty* Param = *PropIt;
-		// Todo don't add to set if Param is const T&
-		if(Param->HasMetaData(TEXT("Ptr")))
+		// Todo don't add to set if Param is const T&, raise compile error
+		if(!Param->HasMetaData("Ptr"))
+			continue;
+		
+		const FString& PinDisplayName = Param->GetMetaData(FBlueprintMetadata::MD_DisplayName);
+		if (!PinDisplayName.IsEmpty())
 		{
-			const FString& PinDisplayName = Param->GetMetaData(FBlueprintMetadata::MD_DisplayName);
-			if (!PinDisplayName.IsEmpty())
-			{
-				OutputPtrPinNames.Add(FName(PinDisplayName));
-			}
-			else if (Function->GetReturnProperty() == Param && Function->HasMetaData(FBlueprintMetadata::MD_ReturnDisplayName))
-			{
-				OutputPtrPinNames.Add(FName(Function->GetMetaData(FBlueprintMetadata::MD_ReturnDisplayName)));
-			}
-			else
-			{
-				OutputPtrPinNames.Add(Param->GetFName());
-			}
+			OutputPtrPinNames.Add(FName(PinDisplayName));
 		}
+		else if (Function->GetReturnProperty() == Param && Function->HasMetaData(FBlueprintMetadata::MD_ReturnDisplayName))
+		{
+			OutputPtrPinNames.Add(FName(Function->GetMetaData(FBlueprintMetadata::MD_ReturnDisplayName)));
+		}
+		else
+		{
+			OutputPtrPinNames.Add(Param->GetFName());
+		}		
 	}
 	OutputPtrPinPairs.Reset();
 	for(auto Pin: Pins)
