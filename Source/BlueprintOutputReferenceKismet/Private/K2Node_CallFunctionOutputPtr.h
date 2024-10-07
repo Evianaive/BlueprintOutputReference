@@ -23,14 +23,7 @@ class BLUEPRINTOUTPUTREFERENCEKISMET_API UK2Node_CallFunctionOutputPtr : public 
 	virtual void PostParameterPinCreated(UEdGraphPin* Pin) override;
 	void UpdatePtrPinPairs();
 public:
-	struct FNonReferenceState
-	{
-		UEdGraphPin* MainPin;
-		UEdGraphPin* PtrPin;
-		UEdGraphPin* ReferencePin;
-		UEdGraphPin* NonReferencePin;
-	};
-	TArray<FNonReferenceState> OutputPtrPinPairs;
+	TArray<UEdGraphPin*> OutputPtrPins;
 	struct FRelatedTerminals
 	{
 		FBPTerminal* PtrTerm;

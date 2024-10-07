@@ -40,49 +40,66 @@ public:
 	
 	virtual void RegisterNets(FKismetFunctionContext& Context, UEdGraphNode* Node) override
 	{
-		// UK2Node_CallFunctionOutputPtr* CurNode = CastChecked<UK2Node_CallFunctionOutputPtr>(Node);
-		
 		/* auto register other pin(literal) by default method*/
 		CurNode = CastChecked<UK2Node_CallFunctionOutputPtr>(Node);
 		FKCHandler_CallFunction::RegisterNets(Context, Node);
 		CurNode = nullptr;
 	}
+	void CreateTermForPtrPin(FKismetFunctionContext& Context, UEdGraphPin* Pin)
+	{
+		UEdGraphPin* PtrPin = CurNode->CreatePin(EGPD_Output,
+		UEdGraphSchema_K2::PC_Int64,
+		FName(Pin->PinName.ToString()+TEXT("_Ptr")));
+		CurNode->Pins.RemoveAt(CurNode->Pins.Num()-1);
+		
+		// ptr as int64
+		FKCHandler_CallFunction::RegisterNet(Context,PtrPin);
+		FBPTerminal** PtrTermResult = Context.NetMap.Find(PtrPin);
+		if(PtrTermResult==nullptr)
+		{
+			Context.MessageLog.Error(*LOCTEXT("Error_PtrPinNotFounded", "ICE: Ptr Pin is not created @@").ToString(), CurNode);
+		}
+		
+		FBPTerminal* Term = new FBPTerminal();
+		Context.InlineGeneratedValues.Add(Term);			
+		Term->CopyFromPin(Pin, Context.NetNameMap->MakeValidName(Pin));
+		Context.NetMap.Add(Pin, Term);
+		// inline struct		
+		auto& RelatedTerm = CurNode->OutputPtrPinTermMaps.FindOrAdd(Term,{*PtrTermResult,Term,nullptr});
+
+		// has non reference pin
+		bool ConnectionHasNonRef = false;
+		for(auto LinkedTo : Pin->LinkedTo)
+		{
+			ConnectionHasNonRef |= !LinkedTo->PinType.bIsReference;
+		}
+		if(!ConnectionHasNonRef)
+			return;
+		
+		// Create Non Reference Pin
+		UEdGraphPin* NonReferencePin = CurNode->CreatePin(EGPD_Output,
+		UEdGraphSchema_K2::PC_Struct,
+		FName(Pin->PinName.ToString()+TEXT("_NonRef")));
+		CurNode->Pins.RemoveAt(CurNode->Pins.Num()-1);
+		NonReferencePin->PinType = Pin->PinType;
+		NonReferencePin->PinType.bIsReference = false;
+		
+		FKCHandler_CallFunction::RegisterNet(Context,NonReferencePin);
+		if(FBPTerminal** NonRefTerm = Context.NetMap.Find(NonReferencePin))
+		{
+			RelatedTerm.NonRefTerm = *NonRefTerm;
+		}
+	}
 	virtual void RegisterNet(FKismetFunctionContext& Context, UEdGraphPin* Pin) override
 	{
-		// This net is an output from a function call
-		if(auto* FindResult =	CurNode->OutputPtrPinPairs
-			.FindByPredicate([Pin](const UK2Node_CallFunctionOutputPtr::FNonReferenceState& Pair)
-			{
-				return Pair.MainPin == Pin;
-			}))
+		const int32 PinId = CurNode->OutputPtrPins.Find(Pin);
+		if(PinId!=INDEX_NONE)
 		{
-			// ptr as int64
-			FKCHandler_CallFunction::RegisterNet(Context,FindResult->PtrPin);
-			FBPTerminal** PtrTermResult = Context.NetMap.Find(FindResult->PtrPin);
-			if(PtrTermResult==nullptr)
-			{
-				// Todo Return Error!
-			}
-			
-			FBPTerminal* Term = new FBPTerminal();
-			Context.InlineGeneratedValues.Add(Term);			
-			Term->CopyFromPin(FindResult->MainPin, Context.NetNameMap->MakeValidName(FindResult->MainPin));
-			Context.NetMap.Add(FindResult->MainPin, Term);
-			// inline struct
-			if(FindResult->ReferencePin == FindResult->MainPin)
-			{				
-				auto& RelatedTerm = CurNode->OutputPtrPinTermMaps.FindOrAdd(Term,{*PtrTermResult,Term,nullptr});
-				if(FindResult->NonReferencePin)
-				{
-					FKCHandler_CallFunction::RegisterNet(Context,FindResult->NonReferencePin);
-					if(FBPTerminal** NonRefTerm = Context.NetMap.Find(FindResult->NonReferencePin))
-					{
-						RelatedTerm.NonRefTerm = *NonRefTerm;
-					}						
-				}
-				return;
-			}
+			CreateTermForPtrPin(Context,Pin);
+			// We don't need to create local term since we have already handled all term creation.
+			return;
 		}
+		// Create Normal Local Term
 		FKCHandler_CallFunction::RegisterNet(Context, Pin);
 	}
 
@@ -96,34 +113,35 @@ public:
 		
 		CurNode = CastChecked<UK2Node_CallFunctionOutputPtr>(Node);		
 		FKCHandler_CallFunction::Compile(Context, Node);
+		auto InsertPtrConvert = [&,this](FBPTerminal*& FinalOutput)
+		{
+			auto RHSPtrResult = CurNode->OutputPtrPinTermMaps.Find(FinalOutput);
+			if(!RHSPtrResult)
+				return;
+				
+			FinalOutput = RHSPtrResult->PtrTerm;
+			// We should not use AppendStatementForNode because the state is inlineGenerated. It does
+			// not need to generate a piece of code for other to jump to
+			// FBlueprintCompiledStatement& PtrConvert = Context.AppendStatementForNode(Node);
+			FBlueprintCompiledStatement* Result = new FBlueprintCompiledStatement();
+			Context.AllGeneratedStatements.Add(Result);
+			Result->Type = KCST_CallFunction;
+			Result->RHS.Add(RHSPtrResult->PtrTerm);
+			// PtrConvert.LHS = FinalOutput;
+			RHSPtrResult->RefTerm->InlineGeneratedParameter = Result;
+				
+			if(RHSPtrResult->NonRefTerm)
+			{
+				Result->FunctionToCall = CopyValueFromPtrFunction;
+				Result->RHS.Add(RHSPtrResult->NonRefTerm);
+			}
+			else
+			{
+				Result->FunctionToCall = ConvertPtrFunction;
+			}
+		};
 		if(auto StatementsResult = Context.StatementsPerNode.Find(Node))
 		{
-			auto InsertPtrConvert = [&,this](FBPTerminal*& FinalOutput)
-			{
-				if(auto RHSPtrResult = CurNode->OutputPtrPinTermMaps.Find(FinalOutput))
-				{
-					FinalOutput = RHSPtrResult->PtrTerm;
-					// We should not use AppendStatementForNode because the state is inlineGenerated. It does
-					// not need to generate a piece of code for other to jump to
-					// FBlueprintCompiledStatement& PtrConvert = Context.AppendStatementForNode(Node);
-					FBlueprintCompiledStatement* Result = new FBlueprintCompiledStatement();
-					Context.AllGeneratedStatements.Add(Result);
-					Result->Type = KCST_CallFunction;
-					Result->RHS.Add(RHSPtrResult->PtrTerm);
-					// PtrConvert.LHS = FinalOutput;
-					RHSPtrResult->RefTerm->InlineGeneratedParameter = Result;
-					
-					if(RHSPtrResult->NonRefTerm)
-					{
-						Result->FunctionToCall = CopyValueFromPtrFunction;
-						Result->RHS.Add(RHSPtrResult->NonRefTerm);
-					}
-					else
-					{
-						Result->FunctionToCall = ConvertPtrFunction;
-					}
-				}
-			};
 			const int32 CurrentStatementCount = StatementsResult->Num();			
 			for (int i = 0; i<CurrentStatementCount;i++)
 			{
@@ -296,53 +314,8 @@ FNodeHandlingFunctor* UK2Node_CallFunctionOutputPtr::CreateNodeHandler(FKismetCo
 
 void UK2Node_CallFunctionOutputPtr::ExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph)
 {
-	// Todo order problem??
-	UpdatePtrPinPairs();
 	Super::ExpandNode(CompilerContext, SourceGraph);
-	
-	for (auto& Element : OutputPtrPinPairs)
-	{
-		Element.PtrPin = CreatePin(EGPD_Output,
-			UEdGraphSchema_K2::PC_Int64,
-			FName(Element.MainPin->PinName.ToString()+TEXT("_Ptr")));
-		Pins.RemoveAt(Pins.Num()-1);
-
-		// Todo move this logic to RegisterNet!
-		bool ConnectionHasRef = false;
-		bool ConnectionHasNonRef = false;
-		for(auto LinkedTo : Element.MainPin->LinkedTo)
-		{
-			ConnectionHasRef |= LinkedTo->PinType.bIsReference;
-			ConnectionHasNonRef |= !LinkedTo->PinType.bIsReference;
-		}
-		if(ConnectionHasRef || ConnectionHasNonRef)
-		{
-			Element.ReferencePin = Element.MainPin;
-			// for(auto LinkedTo : Element.ReferencePin->LinkedTo)
-			// {
-			// 	if(!LinkedTo->PinType.bIsReference)
-			// 	{
-			// 		for(auto& InLinkPin : LinkedTo->LinkedTo)
-			// 		{
-			// 			if(InLinkPin == Element.ReferencePin)
-			// 			{
-			// 				InLinkPin = Element.NonReferencePin;
-			// 			}
-			// 		}
-			// 	}
-			// }
-		}
-		if(ConnectionHasNonRef)
-		{
-			// Create Non Reference Pin
-			Element.NonReferencePin = CreatePin(EGPD_Output,
-			UEdGraphSchema_K2::PC_Int64,
-			FName(Element.ReferencePin->PinName.ToString()+TEXT("_NonRef")));
-			Pins.RemoveAt(Pins.Num()-1);
-			Element.NonReferencePin->PinType = Element.ReferencePin->PinType;
-			Element.NonReferencePin->PinType.bIsReference = false;
-		}
-	}
+	UpdatePtrPinPairs();
 }
 
 void UK2Node_CallFunctionOutputPtr::PostParameterPinCreated(UEdGraphPin* Pin)
@@ -355,10 +328,9 @@ void UK2Node_CallFunctionOutputPtr::UpdatePtrPinPairs()
 	auto Function = GetTargetFunction();
 	
 	TSet<FName> OutputPtrPinNames;
-	for (TFieldIterator<FProperty> PropIt(Function); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
+	for (TFieldIterator<FProperty> PropIt(Function); PropIt && (PropIt->PropertyFlags & CPF_OutParm); ++PropIt)
 	{
 		FProperty* Param = *PropIt;
-		// Todo don't add to set if Param is const T&, raise compile error
 		if(!Param->HasMetaData("Ptr"))
 			continue;
 		
@@ -376,14 +348,14 @@ void UK2Node_CallFunctionOutputPtr::UpdatePtrPinPairs()
 			OutputPtrPinNames.Add(Param->GetFName());
 		}		
 	}
-	OutputPtrPinPairs.Reset();
+	OutputPtrPins.Reset();
 	for(auto Pin: Pins)
 	{
 		if(OutputPtrPinNames.Find(Pin->PinFriendlyName.IsEmpty()? Pin->PinName:FName(Pin->PinFriendlyName.ToString())))
 		{
 			// Pin->Direction = EGPD_Output;
 			Pin->PinType.bIsReference = true;
-			OutputPtrPinPairs.Add({Pin});
+			OutputPtrPins.Add(Pin);
 		}
 	}
 }
